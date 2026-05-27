@@ -445,7 +445,7 @@
 
         async function loadCSV() {
             try {
-                const response = await fetch('bibliografia_cisui_completo.csv');
+                const response = await fetch('bibliografia_cisui_completo.csv?v=' + Date.now());
                 if (!response.ok) {
                     throw new Error('Impossibile caricare il file CSV');
                 }
@@ -469,11 +469,15 @@
         }
 
         function parseCSV(csvText) {
-            const lines = csvText.split('\n');
-            const rawHeaders = parseCSVLine(lines[0]);
-            const data = [];
+            // Normalizza i fine riga (Windows \r\n → \n)
+            const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const lines = normalizedText.split('\n');
 
-            // Mappa i nomi delle colonne del CSV sui nomi usati dal codice JS
+            // Rimuove il BOM dall'intera prima riga se presente
+            const firstLine = lines[0].replace(/^\uFEFF/, '');
+            const rawHeaders = parseCSVLine(firstLine);
+
+            // Mappa i nomi delle colonne CSV → nomi usati dal codice JS
             const headerMap = {
                 'autore saggio':                    'autore_saggio',
                 'precisazione autore':              'precisazione_autore',
@@ -484,24 +488,29 @@
                 'data':                             'anno'
             };
             const headers = rawHeaders.map(h => {
-                const key = h.trim().toLowerCase().replace(/^\uFEFF/, '');
+                const key = h.trim().toLowerCase();
                 return headerMap[key] || key;
             });
 
+            console.log('Colonne CSV lette:', headers);
+
+            const data = [];
             for (let i = 1; i < lines.length; i++) {
                 if (lines[i].trim() === '') continue;
                 
                 const values = parseCSVLine(lines[i]);
-                if (values.length < headers.length) continue;
+                if (values.length < 2) continue;
                 
                 const item = {};
                 headers.forEach((header, index) => {
-                    item[header] = values[index] || '';
+                    item[header] = (values[index] || '').trim();
                 });
                 
                 data.push(item);
             }
-            
+
+            console.log('Primo record:', data[0]);
+            console.log('Totale record:', data.length);
             return data;
         }
 
@@ -678,10 +687,10 @@
                     
                     return `
                         <div class="bib-item">
-                            <div class="bib-title">${title}</div>
-                            <div class="bib-authors">${author}</div>
+                            <div class="bib-title">${title || '(titolo non disponibile)'}</div>
+                            <div class="bib-authors">${author || ''}</div>
                             <div class="bib-details">
-                                ${item.tipologia} • ${item.anno}${details.length > 0 ? ' • ' + details.join(' • ') : ''}
+                                ${item.tipologia || ''} • ${item.anno || ''}${details.length > 0 ? ' • ' + details.filter(d => d).join(' • ') : ''}
                             </div>
                         </div>
                     `;
